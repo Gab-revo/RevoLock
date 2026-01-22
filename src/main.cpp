@@ -1,0 +1,125 @@
+#include <Keypad.h>
+#include <secret.h>
+
+#define TARGET_BOARD_ESP32
+
+/* =========================================================
+  FUNCTION DECLARATIONS
+   ========================================================= */
+void updateLEDs();
+void handlePasswordToggle();
+
+/* =========================================================
+   PIN CONFIG
+   ========================================================= */
+#define GREEN_PIN 2
+#define YELLOW_PIN 4
+#define RED_PIN 15
+
+/* =========================================================
+   KEYPAD CONFIG
+   ========================================================= */
+#define ROWS 4
+#define COLS 4
+
+char keymap[ROWS][COLS] = {
+  {'1','2','3','A'},
+  {'4','5','6','B'},
+  {'7','8','9','C'},
+  {'*','0','#','D'}
+};
+
+byte rowPins[ROWS] = {16,17,18,19};
+byte colPins[COLS] = {14,27,26,25};
+
+Keypad keypad = Keypad(makeKeymap(keymap), colPins, rowPins, COLS, ROWS);
+
+/* =========================================================
+   PASSWORD CONFIG
+   ========================================================= */
+const String PASSWORD = "2589";
+String enteredPassword;
+bool isLocked = true;
+
+/* =========================================================
+   LED STATE ENUM
+   ========================================================= */
+enum LEDState { LOCKED, ENTERING, UNLOCKED };
+
+/* =========================================================
+   SETUP
+   ========================================================= */
+void setup() {
+  Serial.begin(115200);
+
+  pinMode(GREEN_PIN, OUTPUT);
+  pinMode(YELLOW_PIN, OUTPUT);
+  pinMode(RED_PIN, OUTPUT);
+
+  enteredPassword.reserve(16);
+  Serial.println("System initialized");
+}
+
+/* =========================================================
+   LOOP
+   ========================================================= */
+void loop() {
+  // Update LEDs based on current state
+  updateLEDs();
+
+  char key = keypad.getKey();
+  if (!key) return; // no key pressed
+
+  Serial.println(key);
+
+  // Handle special keys
+  switch (key) {
+    case '*': // clear input
+      enteredPassword = "";
+      Serial.println("Input cleared");
+      break;
+
+    case '#': // submit password to toggle lock/unlock
+      handlePasswordToggle();
+      enteredPassword = ""; // always clear after #
+      break;
+
+    default: // regular key
+      enteredPassword += key;
+      Serial.print("Entered: ");
+      Serial.println(enteredPassword);
+      break;
+  }
+
+  delay(100); // simple debounce
+}
+
+/* =========================================================
+   HANDLE PASSWORD TOGGLE
+   ========================================================= */
+void handlePasswordToggle() {
+  if (enteredPassword != PASSWORD) {
+    Serial.print("ACCESS DENIED, entered: ");
+    Serial.println(enteredPassword);
+    return; // do nothing if password is wrong
+  }
+
+  // correct password → toggle lock
+  isLocked = !isLocked;
+  Serial.println(isLocked ? "Site Locked!" : "ACCESS GRANTED");
+}
+
+/* =========================================================
+   UPDATE LEDS BASED ON STATE
+   ========================================================= */
+void updateLEDs() {
+  LEDState state;
+
+  if (!isLocked) state = UNLOCKED;
+  else if (enteredPassword == "") state = LOCKED;
+  else state = ENTERING;
+
+  digitalWrite(GREEN_PIN, state == UNLOCKED);
+  digitalWrite(YELLOW_PIN, state == ENTERING);
+  digitalWrite(RED_PIN, state == LOCKED);
+}
