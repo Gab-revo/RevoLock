@@ -1,5 +1,5 @@
 #include <Keypad.h>
-#include <secret.h>
+#include "setup.h"
 
 #define TARGET_BOARD_ESP32
 
@@ -37,7 +37,6 @@ Keypad keypad = Keypad(makeKeymap(keymap), colPins, rowPins, COLS, ROWS);
 /* =========================================================
    PASSWORD CONFIG
    ========================================================= */
-const String PASSWORD = "2589";
 String enteredPassword;
 bool isLocked = true;
 
@@ -98,7 +97,7 @@ void loop() {
    HANDLE PASSWORD TOGGLE
    ========================================================= */
 void handlePasswordToggle() {
-  if (enteredPassword != PASSWORD) {
+  if (enteredPassword != DEVICE_PASSWORD) {
     Serial.print("ACCESS DENIED, entered: ");
     Serial.println(enteredPassword);
     return; // do nothing if password is wrong
