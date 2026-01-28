@@ -3,8 +3,8 @@
 #include <WiFi.h>
 #include <HTTPClient.h>
 
-// Mailtrap API configuration
-#define MAILTRAP_API_URL "https://send.api.mailtrap.io/api/send"
+// Mailtrap Sandbox API configuration (for testing)
+#define MAILTRAP_API_URL "https://sandbox.api.mailtrap.io/api/send/" + String(MAILTRAP_SANDBOX_ID)
 
 /**
  * Send email via Mailtrap
@@ -45,9 +45,10 @@ bool Mailtrap::sendEmail(const char* fromEmail, const char* fromName,
   Serial.print("[Mailtrap] Payload: ");
   Serial.println(payload);
 
-  // Send HTTP POST request to Mailtrap
+  // Send HTTP POST request to Mailtrap Sandbox
   HTTPClient http;
-  http.begin(MAILTRAP_API_URL);
+  String apiUrl = "https://sandbox.api.mailtrap.io/api/send/" + String(MAILTRAP_SANDBOX_ID);
+  http.begin(apiUrl);
   
   // Set required headers
   http.addHeader("Content-Type", "application/json");

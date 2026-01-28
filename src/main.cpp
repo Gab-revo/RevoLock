@@ -60,6 +60,23 @@ void setup() {
   CloudStatus::initWiFi();
   enteredPassword.reserve(16);
   Serial.println("System initialized");
+  
+  // Test email on startup
+  delay(2000); // Wait for WiFi to stabilize
+  if (CloudStatus::isCloudConnected()) {
+    Serial.println("Sending test email...");
+    bool emailSent = Mailtrap::sendSimpleEmail(
+      MAILTRAP_RECIPIENT, 
+      "Admin",
+      "RevoLock System Started",
+      "Your RevoLock smart lock system has successfully started and connected to WiFi."
+    );
+    if (emailSent) {
+      Serial.println("Test email sent successfully!");
+    } else {
+      Serial.println("Failed to send test email");
+    }
+  }
 }
 
 /* =========================================================
