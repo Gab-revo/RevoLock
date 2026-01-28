@@ -1,6 +1,7 @@
 #include <Keypad.h>
 #include "setup.h"
 #include "CloudStatus.h"
+#include "Mailtrap.h"
 
 #define TARGET_BOARD_ESP32
 
@@ -94,7 +95,7 @@ void loop() {
 
   // Send status to cloud
   CloudStatus::sendStatusToCloud(isLocked, enteredPassword);
-  
+
   delay(100); // simple debounce
 }
 
@@ -111,6 +112,8 @@ void handlePasswordToggle() {
   // correct password → toggle lock
   isLocked = !isLocked;
   Serial.println(isLocked ? "Site Locked!" : "ACCESS GRANTED");
+  Mailtrap::sendSimpleEmail("user@example.com", "John", 
+                          "Lock Alert", "Unauthorized access attempt!");
 }
 
 /* =========================================================
