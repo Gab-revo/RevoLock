@@ -3,4 +3,8 @@
 .vscode/c_cpp_properties.json
 .vscode/launch.json
 .vscode/ipch
+
+# Configuration files with credentials
+# Copy setup.h.example to setup.h and fill in your actual credentials
 include/setup.h
+
