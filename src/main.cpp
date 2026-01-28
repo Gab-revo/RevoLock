@@ -1,5 +1,6 @@
 #include <Keypad.h>
 #include "setup.h"
+#include "CloudStatus.h"
 
 #define TARGET_BOARD_ESP32
 
@@ -55,6 +56,7 @@ void setup() {
   pinMode(YELLOW_PIN, OUTPUT);
   pinMode(RED_PIN, OUTPUT);
 
+  CloudStatus::initWiFi();
   enteredPassword.reserve(16);
   Serial.println("System initialized");
 }
@@ -90,6 +92,9 @@ void loop() {
       break;
   }
 
+  // Send status to cloud
+  CloudStatus::sendStatusToCloud(isLocked, enteredPassword);
+  
   delay(100); // simple debounce
 }
 
