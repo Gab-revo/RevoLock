@@ -128,9 +128,24 @@ void handlePasswordToggle() {
 
   // correct password → toggle lock
   isLocked = !isLocked;
-  Serial.println(isLocked ? "Site Locked!" : "ACCESS GRANTED");
-  Mailtrap::sendSimpleEmail("user@example.com", "John", 
-                          "Lock Alert", "Unauthorized access attempt!");
+
+  if (isLocked){
+    Serial.println("SITE LOCKED");
+    Mailtrap::sendSimpleEmail(
+      MAILTRAP_RECIPIENT, 
+      "Admin",
+      "RevoLock Locked",
+      "The RevoLock smart lock has been locked."
+    );
+  } else {
+    Serial.println("SITE UNLOCKED");
+    Mailtrap::sendSimpleEmail(
+      MAILTRAP_RECIPIENT, 
+      "Admin",
+      "RevoLock Unlocked",
+      "The RevoLock smart lock has been unlocked."
+    );
+  }
 }
 
 /* =========================================================
