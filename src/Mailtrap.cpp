@@ -79,3 +79,13 @@ bool Mailtrap::sendSimpleEmail(const char* toEmail, const char* toName,
   return sendEmail(MAILTRAP_SENDER, "Smart Lock System", 
                    toEmail, toName, subject, textBody, nullptr);
 }
+
+bool Mailtrap::sendLockStatusEmail(const char* toEmail, const char* toName,
+                                   bool isLocked) {
+  const char* subject = isLocked ? "Lock Engaged" : "Lock Disengaged";
+  const char* textBody = isLocked ? 
+    "The smart lock has been engaged." : 
+    "The smart lock has been disengaged.";
+  
+  return sendSimpleEmail(toEmail, toName, subject, textBody);
+}

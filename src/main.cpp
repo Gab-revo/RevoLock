@@ -14,9 +14,9 @@ void handlePasswordToggle();
 /* =========================================================
    PIN CONFIG
    ========================================================= */
-#define GREEN_PIN 2
-#define YELLOW_PIN 4
-#define RED_PIN 15
+#define GREEN_PIN 27
+#define YELLOW_PIN 14
+#define RED_PIN 12
 
 /* =========================================================
    KEYPAD CONFIG
@@ -32,7 +32,8 @@ char keymap[ROWS][COLS] = {
 };
 
 byte rowPins[ROWS] = {16,17,18,19};
-byte colPins[COLS] = {14,27,26,25};
+//byte colPins[COLS] = {14,27,26,25};
+byte colPins[COLS] = {26,25,33,32};
 
 Keypad keypad = Keypad(makeKeymap(keymap), colPins, rowPins, COLS, ROWS);
 
@@ -40,7 +41,7 @@ Keypad keypad = Keypad(makeKeymap(keymap), colPins, rowPins, COLS, ROWS);
    PASSWORD CONFIG
    ========================================================= */
 String enteredPassword;
-bool isLocked = true;
+bool isLocked = false;
 
 /* =========================================================
    LED STATE ENUM
@@ -57,34 +58,37 @@ void setup() {
   pinMode(YELLOW_PIN, OUTPUT);
   pinMode(RED_PIN, OUTPUT);
 
+  //Turn on yellow LED during setup
+  digitalWrite(YELLOW_PIN, HIGH);
+
   CloudStatus::initWiFi();
   enteredPassword.reserve(16);
   Serial.println("System initialized");
-  
+
   // Test email on startup
   delay(2000); // Wait for WiFi to stabilize
-  if (CloudStatus::isCloudConnected()) {
-    Serial.println("Sending test email...");
-    bool emailSent = Mailtrap::sendSimpleEmail(
-      MAILTRAP_RECIPIENT, 
-      "Admin",
-      "RevoLock System Started",
-      "Your RevoLock smart lock system has successfully started and connected to WiFi."
-    );
-    if (emailSent) {
-      Serial.println("Test email sent successfully!");
-    } else {
-      Serial.println("Failed to send test email");
-    }
-  }
+
+  updateLEDs();
+  // if (CloudStatus::isCloudConnected()) {
+  //   Serial.println("Sending test email...");
+  //   bool emailSent = Mailtrap::sendSimpleEmail(
+  //     MAILTRAP_RECIPIENT, 
+  //     "Admin",
+  //     "RevoLock System Started",
+  //     "Your RevoLock smart lock system has successfully started and connected to WiFi."
+  //   );
+  //   if (emailSent) {
+  //     Serial.println("Test email sent successfully!");
+  //   } else {
+  //     Serial.println("Failed to send test email");
+  //   }
+  // }
 }
 
 /* =========================================================
    LOOP
    ========================================================= */
 void loop() {
-  // Update LEDs based on current state
-  updateLEDs();
 
   char key = keypad.getKey();
   if (!key) return; // no key pressed
@@ -109,6 +113,9 @@ void loop() {
       Serial.println(enteredPassword);
       break;
   }
+  
+  // Update LEDs based on current state
+  updateLEDs();
 
   // Send status to cloud
   CloudStatus::sendStatusToCloud(isLocked, enteredPassword);
@@ -131,19 +138,17 @@ void handlePasswordToggle() {
 
   if (isLocked){
     Serial.println("SITE LOCKED");
-    Mailtrap::sendSimpleEmail(
+    Mailtrap::sendLockStatusEmail(
       MAILTRAP_RECIPIENT, 
       "Admin",
-      "RevoLock Locked",
-      "The RevoLock smart lock has been locked."
+      true
     );
   } else {
     Serial.println("SITE UNLOCKED");
-    Mailtrap::sendSimpleEmail(
+    Mailtrap::sendLockStatusEmail(
       MAILTRAP_RECIPIENT, 
       "Admin",
-      "RevoLock Unlocked",
-      "The RevoLock smart lock has been unlocked."
+      false
     );
   }
 }
@@ -154,7 +159,7 @@ void handlePasswordToggle() {
 void updateLEDs() {
   LEDState state;
 
-  if (!isLocked) state = UNLOCKED;
+  if (!isLocked && enteredPassword == "") state = UNLOCKED;
   else if (enteredPassword == "") state = LOCKED;
   else state = ENTERING;
 

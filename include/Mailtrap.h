@@ -12,6 +12,9 @@ public:
 
     static bool sendSimpleEmail(const char* toEmail, const char* toName,
                                  const char* subject, const char* textBody);
+                                 
+    static bool sendLockStatusEmail(const char* toEmail, const char* toName,
+                                   bool isLocked);
 };
 
 #endif
