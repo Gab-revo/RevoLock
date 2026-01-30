@@ -2,14 +2,20 @@
 #include "setup.h"
 #include "CloudStatus.h"
 #include "Mailtrap.h"
+#include <driver/rtc_io.h> // Required for pin holding
 
 #define TARGET_BOARD_ESP32
+
+// --- SLEEP CONFIG ---
+unsigned long lastActivityTime = 0;
+const unsigned long SLEEP_TIMEOUT = 5000; //20seconds of inactivity
 
 /* =========================================================
   FUNCTION DECLARATIONS
    ========================================================= */
 void updateLEDs();
 void handlePasswordToggle();
+void enterDeepSleep();
 
 /* =========================================================
    PIN CONFIG
@@ -31,11 +37,10 @@ char keymap[ROWS][COLS] = {
   {'*','0','#','D'}
 };
 
-byte rowPins[ROWS] = {16,17,18,19};
-//byte colPins[COLS] = {14,27,26,25};
+byte rowPins[ROWS] = {0,17,18,19};
 byte colPins[COLS] = {26,25,33,32};
 
-Keypad keypad = Keypad(makeKeymap(keymap), colPins, rowPins, COLS, ROWS);
+Keypad keypad = Keypad(makeKeymap(keymap), colPins, rowPins, ROWS, COLS);
 
 /* =========================================================
    PASSWORD CONFIG
@@ -52,7 +57,25 @@ enum LEDState { LOCKED, ENTERING, UNLOCKED };
    SETUP
    ========================================================= */
 void setup() {
+  // Disable GPIO hold from previous deep sleep
+  gpio_hold_dis(GPIO_NUM_32); 
+  rtc_gpio_pulldown_dis(GPIO_NUM_13); // Disable the sleep pulldown
+
   Serial.begin(115200);
+  delay(500); // Let serial stabilize
+  Serial.println("\n\n=== System Waking Up ===");
+
+
+  // Configure row pins as inputs with pull-ups (they become high when not pressed)
+  for (int i = 0; i < ROWS; i++) {
+    pinMode(rowPins[i], INPUT_PULLUP);
+  }
+  
+  // Configure column pins as outputs (low = scan, high = idle)
+  for (int i = 0; i < COLS; i++) {
+    pinMode(colPins[i], OUTPUT);
+    digitalWrite(colPins[i], HIGH);
+  }
 
   pinMode(GREEN_PIN, OUTPUT);
   pinMode(YELLOW_PIN, OUTPUT);
@@ -68,59 +91,76 @@ void setup() {
   // Test email on startup
   delay(2000); // Wait for WiFi to stabilize
 
+ digitalWrite(YELLOW_PIN, LOW);
+  if (!CloudStatus::isCloudConnected()) {
+    //flasg red LED 3 times
+    for (int i = 0; i < 3; i++) {
+      digitalWrite(RED_PIN, HIGH);
+      delay(500);
+      digitalWrite(RED_PIN, LOW);
+      delay(500);
+    }
+  }else{
+    //flasg green LED 3 times
+    for (int i = 0; i < 3; i++) {
+      digitalWrite(GREEN_PIN, HIGH);
+      delay(500);
+      digitalWrite(GREEN_PIN, LOW);
+      delay(500);
+    }
+  }
+  
+  lastActivityTime = millis(); // Reset timer on boot
   updateLEDs();
-  // if (CloudStatus::isCloudConnected()) {
-  //   Serial.println("Sending test email...");
-  //   bool emailSent = Mailtrap::sendSimpleEmail(
-  //     MAILTRAP_RECIPIENT, 
-  //     "Admin",
-  //     "RevoLock System Started",
-  //     "Your RevoLock smart lock system has successfully started and connected to WiFi."
-  //   );
-  //   if (emailSent) {
-  //     Serial.println("Test email sent successfully!");
-  //   } else {
-  //     Serial.println("Failed to send test email");
-  //   }
-  // }
 }
 
 /* =========================================================
    LOOP
    ========================================================= */
 void loop() {
+  // Check for inactivity timeout (do this before returning)
+  if (millis() - lastActivityTime > SLEEP_TIMEOUT) {
+    Serial.println("Timeout - entering sleep");
+    enterDeepSleep();
+  }
 
+  // Scan keypad - this must happen every loop
   char key = keypad.getKey();
-  if (!key) return; // no key pressed
+  
+  if (key) {
+    // Key was pressed
+    lastActivityTime = millis(); // Reset inactivity timer
+    
+    Serial.print("Key pressed: ");
+    Serial.println(key);
+    
+    // Handle special keys
+    switch (key) {
+      case '*': // clear input
+        enteredPassword = "";
+        Serial.println("Input cleared");
+        break;
 
-  Serial.println(key);
+      case '#': // submit password to toggle lock/unlock
+        handlePasswordToggle();
+        enteredPassword = ""; // always clear after #
+        break;
 
-  // Handle special keys
-  switch (key) {
-    case '*': // clear input
-      enteredPassword = "";
-      Serial.println("Input cleared");
-      break;
+      default: // regular key
+        enteredPassword += key;
+        Serial.print("Entered password: ");
+        Serial.println(enteredPassword);
+        break;
+    }
+    
+    // Update LEDs based on current state
+    updateLEDs();
 
-    case '#': // submit password to toggle lock/unlock
-      handlePasswordToggle();
-      enteredPassword = ""; // always clear after #
-      break;
-
-    default: // regular key
-      enteredPassword += key;
-      Serial.print("Entered: ");
-      Serial.println(enteredPassword);
-      break;
+    // Send status to cloud
+    CloudStatus::sendStatusToCloud(isLocked, enteredPassword);
   }
   
-  // Update LEDs based on current state
-  updateLEDs();
-
-  // Send status to cloud
-  CloudStatus::sendStatusToCloud(isLocked, enteredPassword);
-
-  delay(100); // simple debounce
+  delay(20); // Small delay to allow keypad scanning
 }
 
 /* =========================================================
@@ -166,4 +206,32 @@ void updateLEDs() {
   digitalWrite(GREEN_PIN, state == UNLOCKED);
   digitalWrite(YELLOW_PIN, state == ENTERING);
   digitalWrite(RED_PIN, state == LOCKED);
+}
+
+/* =========================================================
+   ENTER DEEP SLEEP ON INACTIVITY
+   ========================================================= */
+void enterDeepSleep() {
+  Serial.println("Entering Deep Sleep...");
+  Serial.flush();
+  
+  // 1. Turn off LEDs
+  digitalWrite(GREEN_PIN, LOW);
+  digitalWrite(YELLOW_PIN, LOW);
+  digitalWrite(RED_PIN, LOW);
+
+  // 2. Power Column 4 (GPIO 32)
+  pinMode(32, OUTPUT);
+  digitalWrite(32, HIGH);
+  gpio_hold_en(GPIO_NUM_32); 
+
+  // 3. Configure Row 1 (GPIO 0) with a Pull-Down
+  // This prevents the pin from floating and causing "fake" wake-ups
+  rtc_gpio_pulldown_en(GPIO_NUM_0); 
+  rtc_gpio_pullup_dis(GPIO_NUM_0);
+
+  // 4. Set Wake-up
+  esp_sleep_enable_ext1_wakeup((1ULL << 0), ESP_EXT1_WAKEUP_ANY_HIGH);
+
+  esp_deep_sleep_start();
 }
