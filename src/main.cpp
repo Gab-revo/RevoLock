@@ -37,7 +37,7 @@ char keymap[ROWS][COLS] = {
   {'*','0','#','D'}
 };
 
-byte rowPins[ROWS] = {0,17,18,19};
+byte rowPins[ROWS] = {16,17,18,19};
 byte colPins[COLS] = {26,25,33,32};
 
 Keypad keypad = Keypad(makeKeymap(keymap), colPins, rowPins, ROWS, COLS);
@@ -46,7 +46,7 @@ Keypad keypad = Keypad(makeKeymap(keymap), colPins, rowPins, ROWS, COLS);
    PASSWORD CONFIG
    ========================================================= */
 String enteredPassword;
-bool isLocked = false;
+RTC_DATA_ATTR bool isLocked = false; // Persists in RTC memory during sleep
 
 /* =========================================================
    LED STATE ENUM
@@ -59,7 +59,7 @@ enum LEDState { LOCKED, ENTERING, UNLOCKED };
 void setup() {
   // Disable GPIO hold from previous deep sleep
   gpio_hold_dis(GPIO_NUM_32); 
-  rtc_gpio_pulldown_dis(GPIO_NUM_13); // Disable the sleep pulldown
+  rtc_gpio_pulldown_dis(GPIO_NUM_32); // Disable the sleep pulldown
 
   Serial.begin(115200);
   delay(500); // Let serial stabilize
@@ -86,9 +86,12 @@ void setup() {
 
   CloudStatus::initWiFi();
   enteredPassword.reserve(16);
+  enteredPassword = ""; // Clear password on wake (start fresh)
+  
+  Serial.print("System initialized - Lock state: ");
+  Serial.println(isLocked ? "LOCKED" : "UNLOCKED");
   Serial.println("System initialized");
 
-  // Test email on startup
   delay(2000); // Wait for WiFi to stabilize
 
  digitalWrite(YELLOW_PIN, LOW);
@@ -220,18 +223,12 @@ void enterDeepSleep() {
   digitalWrite(YELLOW_PIN, LOW);
   digitalWrite(RED_PIN, LOW);
 
-  // 2. Power Column 4 (GPIO 32)
-  pinMode(32, OUTPUT);
-  digitalWrite(32, HIGH);
-  gpio_hold_en(GPIO_NUM_32); 
+  // 2. Configure GPIO 32 (Column 4 - wake-up pin) with pull-down
+  rtc_gpio_pulldown_en(GPIO_NUM_32);
+  rtc_gpio_pullup_dis(GPIO_NUM_32);
 
-  // 3. Configure Row 1 (GPIO 0) with a Pull-Down
-  // This prevents the pin from floating and causing "fake" wake-ups
-  rtc_gpio_pulldown_en(GPIO_NUM_0); 
-  rtc_gpio_pullup_dis(GPIO_NUM_0);
-
-  // 4. Set Wake-up
-  esp_sleep_enable_ext1_wakeup((1ULL << 0), ESP_EXT1_WAKEUP_ANY_HIGH);
+  // 3. Set Wake-up on GPIO 32 when HIGH (button press)
+  esp_sleep_enable_ext1_wakeup((1ULL << 32), ESP_EXT1_WAKEUP_ANY_HIGH);
 
   esp_deep_sleep_start();
 }
