@@ -48,7 +48,6 @@ Keypad keypad = Keypad(makeKeymap(keymap), colPins, rowPins, ROWS, COLS);
    ========================================================= */
 String enteredPassword;
 RTC_DATA_ATTR bool isLocked = false; // Persists in RTC memory during sleep
-bool isLocked = false;
 unsigned long lastPasswordInputTime = 0;
 const unsigned long PASSWORD_TIMEOUT = 30000; // 30 seconds
 unsigned long lastCloudUpdate = 0;
@@ -180,14 +179,10 @@ void loop() {
         Serial.println(enteredPassword);
         break;
     }
-    
-    // Update LEDs based on current state
-    updateLEDs();
-    default: // regular key
-      enteredPassword += key;
-      Serial.println("Key entered");
-      break;
   }
+    
+  // Update LEDs based on current state
+  updateLEDs();
   
   // Track last password input time
   if (key) {
@@ -203,9 +198,8 @@ void loop() {
   // Update LEDs based on current state
   updateLEDs();
 
-    // Send status to cloud
-    CloudStatus::sendStatusToCloud(isLocked, enteredPassword);
-  }
+  // Send status to cloud
+  CloudStatus::sendStatusToCloud(isLocked, enteredPassword);
   
   delay(20); // Small delay to allow keypad scanning
   // Send status to cloud (throttled)
