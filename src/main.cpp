@@ -1,6 +1,6 @@
 #include <Keypad.h>
 #include "setup.h"
-#include "CloudStatus.h"
+#include "WifiStatus.h"
 #include "Mailtrap.h"
 #include <driver/rtc_io.h> // Required for pin holding
 #include "Dolynk.h"
@@ -50,8 +50,6 @@ String enteredPassword;
 RTC_DATA_ATTR bool isLocked = false; // Persists in RTC memory during sleep
 unsigned long lastPasswordInputTime = 0;
 const unsigned long PASSWORD_TIMEOUT = 30000; // 30 seconds
-unsigned long lastCloudUpdate = 0;
-const unsigned long CLOUD_UPDATE_INTERVAL = 60000; // 60 seconds
 
 /* =========================================================
    LED STATE ENUM
@@ -89,18 +87,17 @@ void setup() {
   //Turn on yellow LED during setup
   digitalWrite(YELLOW_PIN, HIGH);
 
-  CloudStatus::initWiFi();
+  WifiStatus::initWiFi();
   enteredPassword.reserve(16);
   enteredPassword = ""; // Clear password on wake (start fresh)
   
   Serial.print("System initialized - Lock state: ");
   Serial.println(isLocked ? "LOCKED" : "UNLOCKED");
-  Serial.println("System initialized");
 
-  delay(2000); // Wait for WiFi to stabilize
+  delay(2000); // Wait for initialization to complete
 
  digitalWrite(YELLOW_PIN, LOW);
-  if (!CloudStatus::isCloudConnected()) {
+  if (!WifiStatus::isWifiConnected()) {
     //flasg red LED 3 times
     for (int i = 0; i < 3; i++) {
       digitalWrite(RED_PIN, HIGH);
@@ -123,22 +120,6 @@ void setup() {
 
   // === TOGGLE HERE ===
   toggle_alarms("off");  // Change to "on" or "off"
-  
-  // Test email on startup
-  // if (CloudStatus::isCloudConnected()) {
-  //   Serial.println("Sending test email...");
-  //   bool emailSent = Mailtrap::sendSimpleEmail(
-  //     MAILTRAP_RECIPIENT, 
-  //     "Admin",
-  //     "RevoLock System Started",
-  //     "Your RevoLock smart lock system has successfully started and connected to WiFi."
-  //   );
-  //   if (emailSent) {
-  //     Serial.println("Test email sent successfully!");
-  //   } else {
-  //     Serial.println("Failed to send test email");
-  //   }
-  // }
 }
 
 /* =========================================================
@@ -175,8 +156,7 @@ void loop() {
 
       default: // regular key
         enteredPassword += key;
-        Serial.print("Entered password: ");
-        Serial.println(enteredPassword);
+        Serial.println("Key entered");
         break;
     }
   }
@@ -194,21 +174,8 @@ void loop() {
     Serial.println("Password entry timeout - clearing");
     enteredPassword = "";
   }
-  
-  // Update LEDs based on current state
-  updateLEDs();
 
-  // Send status to cloud
-  CloudStatus::sendStatusToCloud(isLocked, enteredPassword);
-  
   delay(20); // Small delay to allow keypad scanning
-  // Send status to cloud (throttled)
-  if (millis() - lastCloudUpdate > CLOUD_UPDATE_INTERVAL) {
-    CloudStatus::sendStatusToCloud(isLocked, enteredPassword);
-    lastCloudUpdate = millis();
-  }
-
-  delay(100); // simple debounce
 }
 
 /* =========================================================
