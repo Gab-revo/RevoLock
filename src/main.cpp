@@ -2,6 +2,7 @@
 #include "setup.h"
 #include "CloudStatus.h"
 #include "Mailtrap.h"
+#include "Dolynk.h"
 
 #define TARGET_BOARD_ESP32
 
@@ -32,7 +33,6 @@ char keymap[ROWS][COLS] = {
 };
 
 byte rowPins[ROWS] = {16,17,18,19};
-//byte colPins[COLS] = {14,27,26,25};
 byte colPins[COLS] = {26,25,33,32};
 
 Keypad keypad = Keypad(makeKeymap(keymap), colPins, rowPins, COLS, ROWS);
@@ -42,6 +42,10 @@ Keypad keypad = Keypad(makeKeymap(keymap), colPins, rowPins, COLS, ROWS);
    ========================================================= */
 String enteredPassword;
 bool isLocked = false;
+unsigned long lastPasswordInputTime = 0;
+const unsigned long PASSWORD_TIMEOUT = 30000; // 30 seconds
+unsigned long lastCloudUpdate = 0;
+const unsigned long CLOUD_UPDATE_INTERVAL = 60000; // 60 seconds
 
 /* =========================================================
    LED STATE ENUM
@@ -65,10 +69,14 @@ void setup() {
   enteredPassword.reserve(16);
   Serial.println("System initialized");
 
-  // Test email on startup
   delay(2000); // Wait for WiFi to stabilize
 
   updateLEDs();
+
+  // === TOGGLE HERE ===
+  toggle_alarms("off");  // Change to "on" or "off"
+  
+  // Test email on startup
   // if (CloudStatus::isCloudConnected()) {
   //   Serial.println("Sending test email...");
   //   bool emailSent = Mailtrap::sendSimpleEmail(
@@ -109,16 +117,29 @@ void loop() {
 
     default: // regular key
       enteredPassword += key;
-      Serial.print("Entered: ");
-      Serial.println(enteredPassword);
+      Serial.println("Key entered");
       break;
+  }
+  
+  // Track last password input time
+  if (key) {
+    lastPasswordInputTime = millis();
+  }
+  
+  // Clear password if timeout exceeded
+  if (enteredPassword != "" && millis() - lastPasswordInputTime > PASSWORD_TIMEOUT) {
+    Serial.println("Password entry timeout - clearing");
+    enteredPassword = "";
   }
   
   // Update LEDs based on current state
   updateLEDs();
 
-  // Send status to cloud
-  CloudStatus::sendStatusToCloud(isLocked, enteredPassword);
+  // Send status to cloud (throttled)
+  if (millis() - lastCloudUpdate > CLOUD_UPDATE_INTERVAL) {
+    CloudStatus::sendStatusToCloud(isLocked, enteredPassword);
+    lastCloudUpdate = millis();
+  }
 
   delay(100); // simple debounce
 }
@@ -158,10 +179,10 @@ void handlePasswordToggle() {
    ========================================================= */
 void updateLEDs() {
   LEDState state;
-
-  if (!isLocked && enteredPassword == "") state = UNLOCKED;
-  else if (enteredPassword == "") state = LOCKED;
-  else state = ENTERING;
+  
+  if (enteredPassword != "" ) state = ENTERING;
+  else if (isLocked) state = LOCKED;
+  else state = UNLOCKED;
 
   digitalWrite(GREEN_PIN, state == UNLOCKED);
   digitalWrite(YELLOW_PIN, state == ENTERING);
