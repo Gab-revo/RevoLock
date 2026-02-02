@@ -1,15 +1,15 @@
 #include <Keypad.h>
+#include <driver/rtc_io.h> // Required for pin holding
 #include "setup.h"
 #include "WifiStatus.h"
 #include "Mailtrap.h"
-#include <driver/rtc_io.h> // Required for pin holding
 #include "Dolynk.h"
 
 #define TARGET_BOARD_ESP32
 
 // --- SLEEP CONFIG ---
 unsigned long lastActivityTime = 0;
-const unsigned long SLEEP_TIMEOUT = 5000; //20seconds of inactivity
+const unsigned long SLEEP_TIMEOUT = 60000; //60 seconds of inactivity
 
 /* =========================================================
   FUNCTION DECLARATIONS
@@ -17,6 +17,7 @@ const unsigned long SLEEP_TIMEOUT = 5000; //20seconds of inactivity
 void updateLEDs();
 void handlePasswordToggle();
 void enterDeepSleep();
+void flashLED(int pin, int times);
 
 /* =========================================================
    PIN CONFIG
@@ -38,10 +39,10 @@ char keymap[ROWS][COLS] = {
   {'*','0','#','D'}
 };
 
-byte rowPins[ROWS] = {16,17,18,19};
-byte colPins[COLS] = {26,25,33,32};
+byte rowPins[ROWS] = {16,17,18,13};
+byte colPins[COLS] = {26,25,33,32}; // Column 4 (GPIO32) is the wake-up pin
 
-Keypad keypad = Keypad(makeKeymap(keymap), colPins, rowPins, ROWS, COLS);
+Keypad keypad = Keypad(makeKeymap(keymap), rowPins, colPins, ROWS, COLS);
 
 /* =========================================================
    PASSWORD CONFIG
@@ -61,23 +62,23 @@ enum LEDState { LOCKED, ENTERING, UNLOCKED };
    ========================================================= */
 void setup() {
   // Disable GPIO hold from previous deep sleep
-  gpio_hold_dis(GPIO_NUM_32); 
-  rtc_gpio_pulldown_dis(GPIO_NUM_32); // Disable the sleep pulldown
+  gpio_hold_dis(GPIO_NUM_13); 
+  rtc_gpio_pulldown_dis(GPIO_NUM_26); // Disable the sleep pulldown
 
   Serial.begin(115200);
   delay(500); // Let serial stabilize
   Serial.println("\n\n=== System Waking Up ===");
 
 
-  // Configure row pins as inputs with pull-ups (they become high when not pressed)
-  for (int i = 0; i < ROWS; i++) {
-    pinMode(rowPins[i], INPUT_PULLUP);
+  // Configure col pins as inputs with pull-ups (they become high when not pressed)
+  for (int i = 0; i < COLS; i++) {
+    pinMode(colPins[i], INPUT_PULLUP);
   }
   
-  // Configure column pins as outputs (low = scan, high = idle)
-  for (int i = 0; i < COLS; i++) {
-    pinMode(colPins[i], OUTPUT);
-    digitalWrite(colPins[i], HIGH);
+  // Configure row pins as outputs (low = scan, high = idle)
+  for (int i = 0; i < ROWS; i++) {
+    pinMode(rowPins[i], OUTPUT);
+    digitalWrite(rowPins[i], HIGH);
   }
 
   pinMode(GREEN_PIN, OUTPUT);
@@ -94,32 +95,28 @@ void setup() {
   Serial.print("System initialized - Lock state: ");
   Serial.println(isLocked ? "LOCKED" : "UNLOCKED");
 
-  delay(2000); // Wait for initialization to complete
+    configTime(0, 0, "pool.ntp.org");
+    while (time(nullptr) < 1000000000) delay(500);
 
- digitalWrite(YELLOW_PIN, LOW);
+  delay(1000); // Wait for initialization to complete
+
+  // Turn off yellow LED after setup
+  digitalWrite(YELLOW_PIN, LOW);
+  
   if (!WifiStatus::isWifiConnected()) {
-    //flasg red LED 3 times
-    for (int i = 0; i < 3; i++) {
-      digitalWrite(RED_PIN, HIGH);
-      delay(500);
-      digitalWrite(RED_PIN, LOW);
-      delay(500);
-    }
+    //flash red LED 3 times
+    flashLED(RED_PIN, 3);
   }else{
-    //flasg green LED 3 times
-    for (int i = 0; i < 3; i++) {
-      digitalWrite(GREEN_PIN, HIGH);
-      delay(500);
-      digitalWrite(GREEN_PIN, LOW);
-      delay(500);
-    }
+    //flash green LED 3 times
+    flashLED(GREEN_PIN, 3);
   }
   
+  // === TOGGLE HERE ===
+  toggle_alarms("off");  // Change to "on" or "off"
+
   lastActivityTime = millis(); // Reset timer on boot
   updateLEDs();
 
-  // === TOGGLE HERE ===
-  toggle_alarms("off");  // Change to "on" or "off"
 }
 
 /* =========================================================
@@ -142,6 +139,8 @@ void loop() {
     Serial.print("Key pressed: ");
     Serial.println(key);
     
+    flashLED(YELLOW_PIN, 1);
+    
     // Handle special keys
     switch (key) {
       case '*': // clear input
@@ -156,7 +155,6 @@ void loop() {
 
       default: // regular key
         enteredPassword += key;
-        Serial.println("Key entered");
         break;
     }
   }
@@ -175,7 +173,7 @@ void loop() {
     enteredPassword = "";
   }
 
-  delay(20); // Small delay to allow keypad scanning
+  delay(100); //Simple debounce for keypad
 }
 
 /* =========================================================
@@ -192,19 +190,21 @@ void handlePasswordToggle() {
   isLocked = !isLocked;
 
   if (isLocked){
-    Serial.println("SITE LOCKED");
-    Mailtrap::sendLockStatusEmail(
-      MAILTRAP_RECIPIENT, 
-      "Admin",
-      true
-    );
+    toggle_alarms("on");
+  //   Serial.println("SITE LOCKED");
+  //   Mailtrap::sendLockStatusEmail(
+  //     MAILTRAP_RECIPIENT, 
+  //     "Admin",
+  //     true
+  //   );
   } else {
-    Serial.println("SITE UNLOCKED");
-    Mailtrap::sendLockStatusEmail(
-      MAILTRAP_RECIPIENT, 
-      "Admin",
-      false
-    );
+    toggle_alarms("off");
+  //   Serial.println("SITE UNLOCKED");
+  //   Mailtrap::sendLockStatusEmail(
+  //     MAILTRAP_RECIPIENT, 
+  //     "Admin",
+  //     false
+  //   );
   }
 }
 
@@ -223,24 +223,38 @@ void updateLEDs() {
   digitalWrite(RED_PIN, state == LOCKED);
 }
 
+void flashLED(int pin, int times) {
+  for (int i = 0; i < times; i++) {
+    digitalWrite(pin, HIGH);
+    delay(100);
+    digitalWrite(pin, LOW);
+    delay(100);
+  }
+}
+
 /* =========================================================
    ENTER DEEP SLEEP ON INACTIVITY
    ========================================================= */
 void enterDeepSleep() {
-  Serial.println("Entering Deep Sleep...");
-  Serial.flush();
+  Serial.println("Entering Sleep (Key-Intersection Mode)...");
+
+  // 1. Prepare the 'Source' Row
+  rtc_gpio_init(GPIO_NUM_13);
+  rtc_gpio_set_direction(GPIO_NUM_13, RTC_GPIO_MODE_OUTPUT_ONLY);
+  rtc_gpio_set_level(GPIO_NUM_13, 1); // Set HIGH
+  gpio_hold_en(GPIO_NUM_13);         // Lock it HIGH during sleep
+
+  // 2. Prepare the 'Trigger' Column
+  rtc_gpio_init(GPIO_NUM_26);
+  rtc_gpio_set_direction(GPIO_NUM_26, RTC_GPIO_MODE_INPUT_ONLY);
+  rtc_gpio_pulldown_en(GPIO_NUM_26); // Keep it LOW
+  rtc_gpio_pullup_dis(GPIO_NUM_26);
+
+  // 3. Enable wake-up when Column goes HIGH
+  esp_sleep_enable_ext0_wakeup(GPIO_NUM_26, 1);
+  // 4. Global hold enable
+  gpio_deep_sleep_hold_en();
   
-  // 1. Turn off LEDs
-  digitalWrite(GREEN_PIN, LOW);
-  digitalWrite(YELLOW_PIN, LOW);
-  digitalWrite(RED_PIN, LOW);
-
-  // 2. Configure GPIO 32 (Column 4 - wake-up pin) with pull-down
-  rtc_gpio_pulldown_en(GPIO_NUM_32);
-  rtc_gpio_pullup_dis(GPIO_NUM_32);
-
-  // 3. Set Wake-up on GPIO 32 when HIGH (button press)
-  esp_sleep_enable_ext1_wakeup((1ULL << 32), ESP_EXT1_WAKEUP_ANY_HIGH);
-
+  Serial.flush();
   esp_deep_sleep_start();
 }

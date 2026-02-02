@@ -75,13 +75,31 @@ bool getAccessToken() {
     http.addHeader("Sign", signature);
     
     int httpCode = http.POST("{}");
+    String response = http.getString();
+    
+    Serial.print("[Dolynk] getAccessToken HTTP Code: ");
+    Serial.println(httpCode);
+    Serial.print("[Dolynk] Response: ");
+    Serial.println(response);
+    
     if (httpCode == 200) {
-        JsonDocument doc;
-        deserializeJson(doc, http.getString());
-        if (doc["code"] == 200) {
+        StaticJsonDocument<1024> doc;
+        DeserializationError error = deserializeJson(doc, response);
+        if (error) {
+            Serial.print("[Dolynk] JSON Parse Error: ");
+            Serial.println(error.c_str());
+            http.end();
+            return false;
+        }
+        if (doc["code"].as<String>() == "200") {
             app_access_token = doc["data"]["appAccessToken"].as<String>();
+            Serial.print("[Dolynk] Token obtained: ");
+            Serial.println(app_access_token);
             http.end();
             return true;
+        } else {
+            Serial.print("[Dolynk] API returned code: ");
+            Serial.println(doc["code"].as<String>());
         }
     }
     http.end();
@@ -112,9 +130,9 @@ bool callApi(const char* abilityType, const char* status) {
     String response = http.getString();
     http.end();
     
-    JsonDocument doc;
+    StaticJsonDocument<512> doc;
     deserializeJson(doc, response);
-    return doc["code"] == 200;
+    return doc["code"].as<String>() == "200";
 }
 
 bool toggle_alarms(const char* state) {

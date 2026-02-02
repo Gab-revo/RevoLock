@@ -5,7 +5,7 @@
 // USER CONFIGURATION
 // ==========================================
 // IMPORTANT: Copy this file to setup.h and fill in your actual credentials
-// DO NOT commit setup.h to Git - it contains sensitive information!
+// DO NOT commit setup.h to Git!
 
 // Device Password (for lock/unlock functionality)
 #define DEVICE_PASSWORD "1234"
@@ -14,11 +14,19 @@
 #define WIFI_SSID "YourWiFiSSID"
 #define WIFI_PASSWORD "YourWiFiPassword"
 
+// DoLynk
+#define ACCESS_KEY "your_access_key"
+#define SECRET_ACCESS_KEY "your_secret_access_key"
+#define PRODUCT_ID "your_product_id"
+#define DEVICE_ID "your_device_id"
+#define BASE_URL "https://open-api-sg.dolynkcloud.com/open-api"
+
 // Mailtrap API Credentials
 #define MAILTRAP_TOKEN "your_mailtrap_api_token"
-#define MAILTRAP_SANDBOX_ID 4343964
+#define MAILTRAP_SANDBOX_ID "your_sandbox_id"
 #define MAILTRAP_SENDER "noreply@revolock.com"
 #define MAILTRAP_RECIPIENT "admin@revolock.com"
+
 // ==========================================
 // Optional: WiFi Connection Timeout (ms)
 // ==========================================
