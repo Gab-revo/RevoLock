@@ -27,8 +27,8 @@ bool WifiStatus::initWiFi() {
   
   if (WiFi.status() == WL_CONNECTED) {
     Serial.println("\n[WifiStatus] WiFi Connected!");
-    Serial.print("[WifiStatus] IP Address: ");
-    Serial.println(WiFi.localIP());
+    // Serial.print("[WifiStatus] IP Address: ");
+    // Serial.println(WiFi.localIP());
     cloudConnected = true;
     return true;
   } else {

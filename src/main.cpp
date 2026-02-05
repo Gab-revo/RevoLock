@@ -91,18 +91,23 @@ void setup() {
   WifiStatus::initWiFi();
   enteredPassword.reserve(16);
   enteredPassword = ""; // Clear password on wake (start fresh)
-  
-  Serial.print("System initialized - Lock state: ");
-  Serial.println(isLocked ? "LOCKED" : "UNLOCKED");
 
     configTime(0, 0, "pool.ntp.org");
     while (time(nullptr) < 1000000000) delay(500);
 
   delay(1000); // Wait for initialization to complete
-
-  // Turn off yellow LED after setup
-  digitalWrite(YELLOW_PIN, LOW);
   
+  // === TOGGLE HERE ===
+  if (isLocked){
+    toggle_alarms("on");
+  } else {
+    toggle_alarms("off");
+  }
+
+  
+  Serial.print("System initialized - Lock state: ");
+  Serial.println(isLocked ? "LOCKED" : "UNLOCKED");
+  // Turn off yellow LED after setup
   if (!WifiStatus::isWifiConnected()) {
     //flash red LED 3 times
     flashLED(RED_PIN, 3);
@@ -110,13 +115,10 @@ void setup() {
     //flash green LED 3 times
     flashLED(GREEN_PIN, 3);
   }
-  
-  // === TOGGLE HERE ===
-  toggle_alarms("off");  // Change to "on" or "off"
-
-  lastActivityTime = millis(); // Reset timer on boot
+  digitalWrite(YELLOW_PIN, LOW);
   updateLEDs();
 
+  lastActivityTime = millis(); // Reset timer on boot
 }
 
 /* =========================================================
@@ -136,9 +138,6 @@ void loop() {
     // Key was pressed
     lastActivityTime = millis(); // Reset inactivity timer
     
-    Serial.print("Key pressed: ");
-    Serial.println(key);
-    
     flashLED(YELLOW_PIN, 1);
     
     // Handle special keys
@@ -155,6 +154,11 @@ void loop() {
 
       default: // regular key
         enteredPassword += key;
+        Serial.print("Key pressed: ");
+        for (int i = 0; i < enteredPassword.length(); i++) {
+          Serial.print("#");
+        }
+        Serial.println();
         break;
     }
   }
@@ -181,8 +185,7 @@ void loop() {
    ========================================================= */
 void handlePasswordToggle() {
   if (enteredPassword != DEVICE_PASSWORD) {
-    Serial.print("ACCESS DENIED, entered: ");
-    Serial.println(enteredPassword);
+    Serial.println("ACCESS DENIED, wrong password!!");
     return; // do nothing if password is wrong
   }
 
@@ -191,7 +194,7 @@ void handlePasswordToggle() {
 
   if (isLocked){
     toggle_alarms("on");
-  //   Serial.println("SITE LOCKED");
+    Serial.println("SITE LOCKED");
   //   Mailtrap::sendLockStatusEmail(
   //     MAILTRAP_RECIPIENT, 
   //     "Admin",
@@ -199,7 +202,7 @@ void handlePasswordToggle() {
   //   );
   } else {
     toggle_alarms("off");
-  //   Serial.println("SITE UNLOCKED");
+    Serial.println("SITE UNLOCKED");
   //   Mailtrap::sendLockStatusEmail(
   //     MAILTRAP_RECIPIENT, 
   //     "Admin",
