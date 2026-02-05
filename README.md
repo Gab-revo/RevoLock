@@ -10,7 +10,7 @@ An ESP32-based smart lock system with keypad authentication, WiFi connectivity, 
   - 🟢 Green: System unlocked
   - 🟡 Yellow: Password entry in progress
 - **Deep Sleep Mode**: Automatic sleep after 60 seconds of inactivity for power conservation
-- **Wake-on-Key**: ESP32 wakes from deep sleep when any key is pressed
+- **Wake-on-Key**: ESP32 wakes from deep sleep when '*'
 - **IoT Integration**: DoLynk cloud platform integration for remote alarm control
 - **Email Notifications**: Optional Mailtrap integration for lock status updates
 - **WiFi Connectivity**: Automatic WiFi connection on startup
